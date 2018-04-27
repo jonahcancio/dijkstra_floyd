@@ -12,12 +12,12 @@ Student # 2015-08058
 #define max_str 24
 
 typedef struct Graph {
-    int adjMatrix[max_Vs][max_Vs];
-    int n;
-    int dPred[max_Vs];
-    int dist[max_Vs];
-	int fPred[max_Vs][max_Vs];
-	int fMatrix[max_Vs][max_Vs];
+    int adjMatrix[max_Vs][max_Vs];//adjacency matrix
+    int n;//graph size
+    int dPred[max_Vs][max_Vs];//pred matrix for iterated Dijkstra
+    int dist[max_Vs][max_Vs];//dist matrix for iteratedDijkstra
+	int fPred[max_Vs][max_Vs];//pred matrix for Floyd
+	int fMatrix[max_Vs][max_Vs];//Floyd D matrix
 } Graph;
 
 typedef struct PriorityQueue{
@@ -30,6 +30,7 @@ typedef struct PriorityQueue{
 Graph* graph;
 PriorityQueue* pq;
 
+//initialize graph with no vertices and edges
 void InitGraph(Graph* g){
     int i, j;
     for (i = 0; i < max_Vs; i++) {
@@ -40,6 +41,7 @@ void InitGraph(Graph* g){
     g->n = 0;
 }
 
+//parses the graph at fileName, and initializes the graph g's adjacency matrix accordingly
 void ReadGraph(char* fileName, Graph* g){
     FILE* f = fopen(fileName, "r");
     if (f != NULL){
@@ -63,9 +65,11 @@ void ReadGraph(char* fileName, Graph* g){
         g->n = r-1;
     }else{
         printf("File not found man!\n");
+        exit(1);
     }
 }
 
+//prints adjacency list of graph; for debugging purposes
 void PrintGraph(Graph* g) {
     int i, j;
     for (i = 1; i <= g->n; i++) {
@@ -82,6 +86,7 @@ void PrintGraph(Graph* g) {
     printf("\n");
 }
 
+//prints fMatrix of Floyd algorithm; used for debugging
 void PrintFloydGraph(Graph* g) {
     int i, j;
     for (i = 1; i <= g->n; i++) {
@@ -98,7 +103,7 @@ void PrintFloydGraph(Graph* g) {
     printf("\n");
 }
 
-
+//initializes priority queue for Dijkstra's algorithm
 void InitPQ(Graph* g, PriorityQueue* pq, int s){
     int i = 1;
     int v;
@@ -117,6 +122,7 @@ void InitPQ(Graph* g, PriorityQueue* pq, int s){
     pq->sizePQ = g->n;
 }
 
+//prints out the heap, index and key arrays of the priority queue; for debugging purposes
 void PrintPQ(PriorityQueue* pq){
     int i;
     printf("heap:\t");
@@ -136,10 +142,12 @@ void PrintPQ(PriorityQueue* pq){
     printf("\n");
 }
 
+//returns 1 if priority queue is empty, else returns 0
 int IsEmptyPQ(PriorityQueue* pq){
     return pq->sizePQ == 0;
 }
 
+//Converts the sub-heap at root r back into a min-heap
 void Heapify(PriorityQueue* pq, int r){
     int l = pq->heap[r];
     int k = pq->key[l];
@@ -163,6 +171,7 @@ void Heapify(PriorityQueue* pq, int r){
     pq->index[l] = i;
 }
 
+//returns the root(minimum) of the priority tree, and retains min heap property, used by Dijkstras algorithm
 int ExtractMin(PriorityQueue* pq){
     if(pq->sizePQ == 0){
         printf("PQ Underflow\n");
@@ -176,6 +185,7 @@ int ExtractMin(PriorityQueue* pq){
     return j;
 }
 
+//decrease key[l] into newKey
 int DecreaseKey(PriorityQueue* pq, int l, int newKey) {
     if(pq->key[l] < newKey){
         printf("newKey %d for %d isn't lower than %d\n", newKey, l, pq->key[l]);
@@ -195,62 +205,96 @@ int DecreaseKey(PriorityQueue* pq, int l, int newKey) {
     return 0;
 }
 
+//Dijkstra's algorithm from the book
 void Dijkstra(Graph* g, PriorityQueue* pq, int s){
     InitPQ(g, pq, s);
-    memset(g->dPred, 0, max_Vs*sizeof(int));
+    int i;
+    //initialize pred array at row s to 0
+    for (i = 1; i <= g->n; i++) {
+        g->dPred[s][i] = 0;
+    }
     int u;
     int v;
     int newVal;
     while(IsEmptyPQ(pq) == 0){
         u = ExtractMin(pq);
         if(pq->key[u] == INT_MAX){
-            printf("INFINITY: NO CONNECTIONS si %d\n", s);
+            //printf("INFINITY: Vertex %d has no friends\n", s);
             break;
         }
         for(v = 1; v <= g->n; v++){
             if(g->adjMatrix[u][v] < INT_MAX){
                 newVal = pq->key[u] + g->adjMatrix[u][v];
                 if(pq->key[v] > newVal){
-                    g->dPred[v] = u;
+                    g->dPred[s][v] = u;
                     DecreaseKey(pq, v, newVal);
                 }
             }
         }
     }
-    memcpy(g->dist, pq->key, (g->n+1)*sizeof(int));
+    //copy key array of pq into dist array at row s
+    for (i = 1; i <= g->n; i++) {
+        g->dist[s][i] = pq->key[i];
+    }
 }
 
+//iterates dijkstras algorithm witha ll possible vertices as start nodes
+void IteratedDijkstra(Graph* g, PriorityQueue* pq){
+    int s;
+    for(s = 1; s <= g->n; s++){
+        Dijkstra(graph, pq, s);
+    }
+}
+
+//Displays shortest path from vertex s to vertex v derived using Dijkstras, remember to run IteratedDijkstra() first
 int DisplayDijkstraPath(Graph* g, int s, int v){
+    printf("vertex %d to vertex %d: ", s, v);
     int path[(g->n)+1];
     int len = 1;
     path[len] = v;
     int i = v;
     while(i != s){
-        if(g->dPred[i] == 0){
+        if(g->dPred[s][i] == 0){
             printf("No dijkstra path found\n");
             return -1;
         }else{
-            i = g->dPred[i];
+            i = g->dPred[s][i];
             len += 1;
             path[len] = i;
         }
     }
-    printf("Shortest path found:\t");
-    for(i = len; i >= 1; i--){
-        printf("%d\t", path[i]);
+//    printf("Shortest path found:\t");
+    printf("%d ", path[len]);
+    for(i = len-1; i >= 1; i--){
+        printf("-> %d ", path[i]);
     }
-    printf("\n");
-    printf("Cost of shortest found: %d\n", g->dist[v]);
+    printf("(cost = %d)\n", g->dist[s][v]);
     return 0;
 }
 
+//displays Iterated Dijkstra derived paths on all possible start and end vertex pairs
+void DisplayAllDijkstraPaths(Graph* g){
+    int s, v;
+    for(s = 1; s <= g->n; s++){
+        for(v = 1; v <= g->n; v++){
+            if(s==v){
+                continue;
+            }
+            DisplayDijkstraPath(g, s, v);
+        }
+    }
+}
+//Floyd procedure from book calculates shortest paths into fMatrix
 void Floyd(Graph* g){
     int i, j;
+    //copy adjacency matrix to floyd D matrix
     for (i = 1; i <= g->n; i++) {
         for (j = 1; j <= g->n; j++) {
             g->fMatrix[i][j] = g->adjMatrix[i][j];
         }
     }
+
+    //initialize Floyd pred matrix
     for (i = 1; i <= g->n; i++) {
         for (j = 1; j <= g->n; j++) {
             if(i == j || g->adjMatrix[i][j] == INT_MAX){
@@ -260,9 +304,9 @@ void Floyd(Graph* g){
             }
         }
     }
-
+    //Main Floyd procedure
     int k, dijk;
-    for (k = 1; k < g->n; k++) {
+    for (k = 1; k <= g->n; k++) {
         for (i = 1; i <= g->n; i++) {
             for (j = 1; j <= g->n; j++) {
                 if(g->fMatrix[i][k] == INT_MAX || g->fMatrix[k][j] == INT_MAX){
@@ -279,7 +323,9 @@ void Floyd(Graph* g){
     }
 }
 
+//Displays shortest path from vertex i to vertex j derived using Floyd, remember to run Floyd() first
  int DisplayFloydPath(Graph* g, int i, int j){
+    printf("vertex %d to vertex %d: ", i, j);
     int path[(g->n)+1];
     int len = 1;
     path[len] = j;
@@ -294,25 +340,55 @@ void Floyd(Graph* g){
             path[len] = k;
         }
     }
-    printf("Shortest path found:\t");
+//    printf("Shortest path found:\t");
     int x;
-    for(x = len; x >= 1; x--){
-        printf("%d\t", path[x]);
+    printf("%d ", path[len]);
+    for(x = len-1; x >= 1; x--){
+        printf("-> %d ", path[x]);
     }
-    printf("\n");
-    printf("Cost of shortest found: %d\n", g->fMatrix[i][j]);
+    printf("(cost = %d)\n", g->fMatrix[i][j]);
+    return 0;
+}
+
+//displays Floyd derived paths on all possible start and end vertex pairs
+void DisplayAllFloydPaths(Graph* g){
+    int i, j;
+    for(i = 1; i <= g->n; i++){
+        for(j = 1; j <= g->n; j++){
+            if(i==j){
+                continue;
+            }
+            DisplayFloydPath(g, i, j);
+        }
+    }
 }
 
 int main(){
+    //Initialization and input phase
     graph = malloc(sizeof(Graph));
     pq = malloc(sizeof(PriorityQueue));
-    ReadGraph("graph3.txt", graph);
-    printf("HEY: %d\n", max_Vs);
-    PrintGraph(graph);
-    printf("Dijkstra:\n");
-    Dijkstra(graph, pq, 2);
-    DisplayDijkstraPath(graph, 2, 8);
+    char fileName[30];
+    printf("Program started\n\n");
+    printf("Enter filename> ");
+    scanf("%s", fileName);
+    ReadGraph(fileName, graph);
+//    printf("Graph Adjacency Matrix read:\n");
+//    PrintGraph(graph);
+    printf("\n");
+
+    //Dijkstra phase
+    printf("Iterated Dijkstra:\n");
+    IteratedDijkstra(graph, pq);
+    DisplayAllDijkstraPaths(graph);
+    printf("\n");
+
+    //Floyd phase
     printf("Floyd:\n");
     Floyd(graph);
-    DisplayFloydPath(graph, 2, 8);
+//    PrintFloydGraph(graph);
+    DisplayAllFloydPaths(graph);
+
+    //Freedom phase
+    free(graph);
+    free(pq);
 }
